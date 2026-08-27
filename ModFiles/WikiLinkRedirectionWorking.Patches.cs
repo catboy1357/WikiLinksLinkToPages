@@ -2,6 +2,9 @@ using HarmonyLib;
 using Elements.Core;
 using System;
 using System.Collections.Generic;
+using FrooxEngine;
+using Elements.Assets;
+using FrooxEngine.Store;
 
 namespace WikiLinks;
 
@@ -13,9 +16,9 @@ public static partial class ComplexTypes
 	public static void Patch(
 		Type type, ref string __result)
 	{
+		// Disable the mod
+		if (!WikiLinks.remap_types) return;
 		// This runs the normal check first
-
-		WikiLinks.Msg($"PrePatch {type.Name} -> {__result}");
 
 		if (string.IsNullOrEmpty(__result)) return;
 
@@ -70,8 +73,6 @@ public static partial class ComplexTypes
 		// Edge Case
 		// Object casts already covered as generic type
 		if (__result.StartsWith("Cast")) __result = "ValueCast";
-
-		WikiLinks.Msg($"PostPatch {type.Name} -> {__result}");
 	}
 
 	private static readonly HashSet<string> GenericTypes = new()
@@ -88,4 +89,44 @@ public static partial class ComplexTypes
 		"string", "colorx", "char"
 	};
 	static bool IsValidGenericType(string part) => GenericTypes.Contains(part.ToLower());
+
+	[HarmonyPostfix]
+	[HarmonyPatch(typeof(Hyperlink), "AttachForWikiPage")]
+	public static void AttachForWikiPagePatch(Slot slot, Type type, Hyperlink __result)
+	{
+		if (__result == null || slot == null) return;
+		slot.Tag = "WikiLink";
+	}
+
+	[HarmonyPrefix]
+	[HarmonyPatch(typeof(Hyperlink), "Open")]
+	public static bool OpenPatch(Hyperlink __instance, ref bool __result)
+	{
+		if (!WikiLinks.document_style || __instance?.Slot?.Tag != "WikiLink") return true;
+
+		// Convert from a normal wiki Url to a PDF wiki Url
+		Uri uri = new(__instance.URL.Value.ToString());
+		Uri searchUri = new($"{uri.Scheme}://{uri.Host}/api/pdf{uri.AbsolutePath}");
+
+		HandleOpenWorldURL(searchUri, __instance.Engine);
+
+		return false;
+	}
+
+	public static async void HandleOpenWorldURL(Uri openUrl, Engine engine)
+	{
+		// Find where the user is in the world
+		World targetWorld = engine.WorldManager.FocusedWorld;
+		Slot slot = targetWorld.LocalUser.LocalUserSpace.AddLocalSlot();
+		slot.PositionInFrontOfUser(float3.Backward);
+
+		// Tries to get the asset locally before spawning display
+		string localPath = await engine.AssetManager.GatherAssetFile(openUrl, priority: 0);
+		if (string.IsNullOrEmpty(localPath)) return;
+		Uri LocalAsset = await engine.LocalDB.ImportLocalAssetAsync(localPath, LocalDB.ImportLocation.Original);
+
+		// Opens Uri as a PDF in front of the user.
+		UniversalImporter.Import(AssetClass.Document, [LocalAsset.ToString()], targetWorld, slot.GlobalPosition, slot.GlobalRotation);
+		slot.Destroy();
+	}
 }

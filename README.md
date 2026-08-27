@@ -3,6 +3,8 @@
 A [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader) mod for [Resonite](https://resonite.com/).
 This mod fixes the resolution of wiki links in-game so they point to the correct wiki page. It fixes the issue of pseudo-generics that point to wiki links that don't exist. Example: Avg_Float2 -> Avg, OR_Multi_Bool -> MultiOR, Add_ColorX_Float -> Add.
 
+This mod also has the option to change how the wiki links work. Instead of redirecting via hyper link. It can build the link into a pdf that is automatically spawned in the world.
+
 ## Installation
 
 1. Install [ResoniteModLoader](https://github.com/resonite-modding-group/ResoniteModLoader).
